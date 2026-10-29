@@ -75,7 +75,11 @@ function PlaysTab(v) {
       <div class="rowbtns"><button class="btn primary sm" onClick=${v.createPlay}>Create play</button><button class="btn sm" onClick=${v.cancelNewPlay}>Cancel</button></div>
     </div>`}
     <p class="ptitle">Rally simulator</p>
-    <p class="empty" style="margin:0">Random rallies between both teams in a 5-1: serve, pass, set, attack, block and dig. Score and rotations carry over.</p>
+    <p class="empty" style="margin:0">Random rallies between both teams: serve, pass, set, attack, block and dig. Score and rotations carry over.</p>
+    <div class="two">
+      <div class="field"><span class="flabel">My team</span>${Seg(v.s.rallySys.home, [['5-1', '5-1'], ['6-2', '6-2']], k => v.setRallySys('home', k))}</div>
+      <div class="field"><span class="flabel">Opponent</span>${Seg(v.s.rallySys.opp, [['5-1', '5-1'], ['6-2', '6-2']], k => v.setRallySys('opp', k))}</div>
+    </div>
     <div class="rowbtns">
       <button class="btn primary sm" onClick=${v.runRally}>${solid('play')}Simulate a rally</button>
       <button class=${'toggle' + (v.s.autoRally ? ' on' : '')} onClick=${v.toggleAutoRally} aria-pressed=${v.s.autoRally ? 'true' : 'false'}>${icon('loop')}Auto-play rallies</button>

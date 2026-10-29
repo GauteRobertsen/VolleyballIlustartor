@@ -45,7 +45,7 @@ Preact and htm load from unpkg.com, so the browser needs internet access.
   into the receive formation. Serving shows the spots at the serve, then the switch to base defense. Every
   formation is overlap-legal, and the libero replaces the back-row middle. Presets use your team's
   roles and create any missing players (for example a second setter for 6-2).
-- **Rally simulator**: generates random rallies between both teams in a 5-1 (serve, pass, set,
+- **Rally simulator**: generates random rallies between both teams, each playing a 5-1 or a 6-2 (serve, pass, set,
   attack, then block / dig / kill / error, with transitions). Every player moves at each touch:
   blockers close on the hitter, defenders spread out and attackers cover. "Auto-play rallies" keeps
   playing new rallies, tracking the score, side-out rotations and sets. Missing opponents are created.

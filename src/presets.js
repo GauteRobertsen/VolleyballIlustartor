@@ -100,7 +100,8 @@ function makeFrame(name, note, ids, spots, ball, arrows) {
 }
 
 // Two positions per rotation: everyone in their rotational zone, then the serve-receive formation.
-function receiveFrames(system, rot, ids) {
+// Serve-receive formation for a rotation: { spots, out (the middle the libero replaces), note, setter (who sets) }.
+function receiveSpots(system, rot) {
   let spots = {}, out, note, setter;
   if (system === '5-1') {
     const r = RECEIVE_51.find(x => x.n === rot);
@@ -114,6 +115,11 @@ function receiveFrames(system, rot, ids) {
     out = map(r.out); note = RECEIVE_62_NOTES[base]; setter = map('S');
   }
   delete spots[out];
+  return { spots, out, note, setter };
+}
+
+function receiveFrames(system, rot, ids) {
+  const { spots, out, note, setter } = receiveSpots(system, rot);
   const z = zonesFor(system, rot), zoneSpots = {}, moves = [];
   for (let n = 1; n <= 6; n++) zoneSpots[z[n] === out ? 'L' : z[n]] = ZONE_SPOT[n];
   for (const k in zoneSpots) {
@@ -185,11 +191,14 @@ const clampIn = p => [Math.max(0.4, Math.min(8.6, p[0])), Math.max(0.4, Math.min
 const toWorld = (side, p) => (side === 'home' ? [p[0], p[1]] : [18 - p[0], 9 - p[1]]);
 const baseRole = (k, front) => (front ? (isOH(k) ? 'LF' : isMB(k) ? 'MF' : 'RF') : (isRight(k) ? 'RB' : isOH(k) ? 'MBK' : 'LB'));
 
-function rallyTeam(side, rot, serving) {
-  const z = zonesFor('5-1', rot), mbBack = [5, 6, 1].map(n => z[n]).find(isMB);
+function rallyTeam(side, rot, serving, system) {
+  const z = zonesFor(system, rot), mbBack = [5, 6, 1].map(n => z[n]).find(isMB);
   const liberoIn = mbBack && !(serving && z[1] === mbBack); // the libero never serves
   const at = n => (liberoIn && z[n] === mbBack ? 'L' : z[n]);
-  return { side, rot, zones: z, front: [4, 3, 2].map(at), back: [5, 6, 1].map(at), server: at(1), pos: {} };
+  const back = [5, 6, 1].map(at);
+  // 5-1: the setter always sets. 6-2: whichever setter is in the back row sets; the front-row setter attacks.
+  const setter = system === '5-1' ? 'S' : back.find(k => k === 'S1' || k === 'S2');
+  return { side, rot, system, zones: z, front: [4, 3, 2].map(at), back, server: at(1), setter, pos: {} };
 }
 function baseSpots(t) {
   const out = {};
@@ -220,14 +229,17 @@ function coverSpots(t, hitter, setter, at) {
 }
 
 // sim = { rot: { home, opp } (index into ROT_ORDER), serving, score: { home, opp }, sets: { home, opp } }
-export function simulateRally(team, homeColor, sim) {
+// systems = { home: '5-1' | '6-2', opp: '5-1' | '6-2' }
+export function simulateRally(team, homeColor, sim, systems) {
   sim = sim ? JSON.parse(JSON.stringify(sim)) : { rot: { home: 0, opp: 0 }, serving: 'home', score: { home: 0, opp: 0 }, sets: { home: 0, opp: 0 } };
-  const slots = LINEUP['5-1'].concat('L');
-  const H = pickPlayers(team, slots, homeColor, 'home'), O = pickPlayers(team.concat(H.added), slots, homeColor, 'opp');
+  const sys = { home: '5-1', opp: '5-1', ...(sim.systems || {}), ...(systems || {}) };
+  sim.systems = sys;
+  const H = pickPlayers(team, LINEUP[sys.home].concat('L'), homeColor, 'home');
+  const O = pickPlayers(team.concat(H.added), LINEUP[sys.opp].concat('L'), homeColor, 'opp');
   const ids = { home: H.ids, opp: O.ids }, all = team.concat(H.added, O.added);
   const nm = (side, k) => { const p = all.find(x => x.id === ids[side][k]); return p ? p.name : k; };
   const S = sim.serving, R = S === 'home' ? 'opp' : 'home';
-  const T = { [S]: rallyTeam(S, ROT_ORDER[sim.rot[S]], true), [R]: rallyTeam(R, ROT_ORDER[sim.rot[R]], false) };
+  const T = { [S]: rallyTeam(S, ROT_ORDER[sim.rot[S]], true, sys[S]), [R]: rallyTeam(R, ROT_ORDER[sim.rot[R]], false, sys[R]) };
   const snaps = [];
   const snap = (name, note, side, ballOwn, kind) => snaps.push({ name, note, kind, ball: toWorld(side, ballOwn),
     pos: { home: JSON.parse(JSON.stringify(T.home.pos)), opp: JSON.parse(JSON.stringify(T.opp.pos)) } });
@@ -238,9 +250,9 @@ export function simulateRally(team, homeColor, sim) {
   const sv = T[S], rc = T[R];
   const zoneSlot = { 4: sv.front[0], 3: sv.front[1], 2: sv.front[2], 5: sv.back[0], 6: sv.back[1], 1: sv.back[2] };
   for (let n = 1; n <= 6; n++) sv.pos[zoneSlot[n]] = SERVE_SPOT[n];
-  const rec = RECEIVE_51.find(x => x.n === rc.rot);
+  const rec = receiveSpots(rc.system, rc.rot).spots;
   for (const k of rc.front.concat(rc.back)) rc.pos[k] = rec[k];
-  snap('Serve · ' + nm(S, sv.server), TEAM_NAME[S] + ' serves. ' + scoreText(), S, [-0.7, 7.3], 'ball');
+  snap('Serve · ' + nm(S, sv.server), TEAM_NAME[S] + ' (' + sys[S] + ') serves to ' + TEAM_NAME[R].toLowerCase() + ' (' + sys[R] + '). ' + scoreText(), S, [-0.7, 7.3], 'ball');
 
   let winner = null, attacking = R, touch = null, attacks = 0;
   const r0 = Math.random();
@@ -254,7 +266,7 @@ export function simulateRally(team, homeColor, sim) {
     touch = pickOne(passers.length ? passers : rc.back);
     const land = clampIn(jit(rc.pos[touch], 0.8));
     rc.pos[touch] = land;
-    rc.pos.S = jit(SET_TARGET, 0.2);
+    rc.pos[rc.setter] = jit(SET_TARGET, 0.2);
     sv.pos = baseSpots(sv);
     snap('Pass · ' + nm(R, touch), nm(R, touch) + ' passes to the target; the setter releases. ' + TEAM_NAME[S] + ' switches to base defense.', R, [land[0] + 0.3, land[1] - 0.3], 'ball');
   }
@@ -263,9 +275,10 @@ export function simulateRally(team, homeColor, sim) {
     const A = T[attacking], D = T[attacking === 'home' ? 'opp' : 'home'], aSide = attacking, dSide = D.side;
     attacks++;
     // Set: the setter (or the libero/opposite if the setter took the first ball) goes to the target, hitters to their approach.
-    const setter = touch !== 'S' ? 'S' : (A.pos.L && touch !== 'L' ? 'L' : 'OPP');
+    // If the setter took the first ball, the libero (or the opposite / other setter) sets instead.
+    const setter = touch !== A.setter ? A.setter : (A.pos.L && touch !== 'L' ? 'L' : A.system === '5-1' ? 'OPP' : A.front.find(k => k === 'S1' || k === 'S2'));
     const opts = [];
-    A.front.forEach(k => { if (k === setter) return; if (isOH(k)) opts.push([k, 'left', 5]); else if (isMB(k)) opts.push([k, 'middle', 3]); else if (k === 'OPP') opts.push([k, 'right', 4]); });
+    A.front.forEach(k => { if (k === setter) return; if (isOH(k)) opts.push([k, 'left', 5]); else if (isMB(k)) opts.push([k, 'middle', 3]); else if (isRight(k)) opts.push([k, 'right', 4]); });
     A.back.forEach(k => { if (k === setter) return; if (k === 'OPP') opts.push([k, 'backright', 2]); else if (isOH(k)) opts.push([k, 'pipe', 1]); });
     let roll = rnd(0, opts.reduce((a, o) => a + o[2], 0)), choice = opts[0];
     for (const o of opts) { roll -= o[2]; if (roll <= 0) { choice = o; break; } }

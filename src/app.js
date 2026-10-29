@@ -18,8 +18,9 @@ export class App extends Component {
     this.anim = null; this.drag = null; this.poly = null; this.hover = null;
     this.raf = null; this.holdT = null; this.saveT = null;
     this.dragFrom = null; this.dragOverIdx = null; this.playingFlag = false;
+    const project = loadLocal() || sampleProject(), rally = project.plays.find(p => p.sim);
     this.state = {
-      project: loadLocal() || sampleProject(), frameIdx: 0, tool: 'select', arrowMode: 'straight', arrowKind: 'run',
+      project, rallySys: (rally && rally.sim.systems) || { home: '5-1', opp: '5-1' }, frameIdx: 0, tool: 'select', arrowMode: 'straight', arrowKind: 'run',
       zoneShape: 'rect', zoneColor: '#2563EB', zoneOpacity: 0.25, penColor: '#0F172A', penWidth: 0.08,
       placeChoice: 'next', snap: false, selection: null, playing: false, speed: 'normal', loop: false,
       showGrid: false, showZones: false, showPaths: true, labelMode: 'name', present: false,
@@ -396,7 +397,7 @@ export class App extends Component {
     let play = pr.plays.find(p => p.sim);
     const showing = play && this.play() === play;
     const from = showing ? indexView(this.liveView()) : null;
-    const res = simulateRally(pr.team, this.homeColor(), play ? play.sim : null);
+    const res = simulateRally(pr.team, this.homeColor(), play ? play.sim : null, this.state.rallySys);
     clearTimeout(this.holdT); cancelAnimationFrame(this.raf); this.raf = null; this.anim = null; this.drag = null; this.poly = null;
     if (!auto) this.history.push(JSON.stringify(pr));
     pr.team.push(...res.added);
@@ -683,6 +684,7 @@ export class App extends Component {
       setNewPlayName: e => this.setState({ newPlay: Object.assign({}, s.newPlay, { name: e.target.value }) }),
       setNewPlayCat: e => this.setState({ newPlay: Object.assign({}, s.newPlay, { cat: e.target.value }) }),
       createPlay: () => this.createPlay(), plays, runRally: () => this.runRally(false), toggleAutoRally: () => this.toggleAutoRally(),
+      setRallySys: (side, sys) => this.setState({ rallySys: Object.assign({}, s.rallySys, { [side]: sys }) }),
       presets: PRESETS.map(p => ({ key: p.id, label: p.label, add: () => this.addPreset(p.id) })),
       homeList: pr.team.filter(t => t.side === 'home').map(teamItem), oppList: pr.team.filter(t => t.side === 'opp').map(teamItem),
       teamSwatches: swList(this.homeColor(), c => this.commit(p => { p.team.forEach(t => { if (t.side === 'home' && t.role !== 'L') t.color = c; }); })),
