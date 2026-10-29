@@ -5,7 +5,7 @@ import { Component } from 'https://unpkg.com/preact@10.24.3/dist/preact.module.j
 import { ARROWS, SPEEDS, SWATCHES, SWATCH_NAMES, roleOf } from './constants.js';
 import { r3, arrowGeom, zonePath, zoneCenter, strokePath, textOn, darken } from './geometry.js';
 import { uid, clone, newFrame, makePlayer, makePlay, sampleProject } from './model.js';
-import { PRESETS, buildPreset } from './presets.js';
+import { PRESETS, buildPreset, simulateRally } from './presets.js';
 import { frameView, indexView, interpolate, animProgress } from './animation.js';
 import { loadLocal, saveLocal, downloadJson, parseProject, readFile } from './storage.js';
 import { History } from './history.js';
@@ -23,7 +23,7 @@ export class App extends Component {
       zoneShape: 'rect', zoneColor: '#2563EB', zoneOpacity: 0.25, penColor: '#0F172A', penWidth: 0.08,
       placeChoice: 'next', snap: false, selection: null, playing: false, speed: 'normal', loop: false,
       showGrid: false, showZones: false, showPaths: true, labelMode: 'name', present: false,
-      tab: 'plays', ioOpen: false, confirm: null, newPlay: null, jsonText: '', saveMsg: '', ioMsg: ''
+      tab: 'plays', autoRally: false, ioOpen: false, confirm: null, newPlay: null, jsonText: '', saveMsg: '', ioMsg: ''
     };
   }
 
@@ -118,6 +118,7 @@ export class App extends Component {
     const n = this.play().frames.length, i = this.fi(), hold = SPEEDS[this.state.speed].hold;
     clearTimeout(this.holdT);
     if (i < n - 1) this.holdT = setTimeout(() => { if (this.playingFlag) this.startAnim(i + 1); }, hold);
+    else if (this.state.autoRally && this.play().sim) this.holdT = setTimeout(() => { if (this.playingFlag) this.runRally(true); }, hold * 3);
     else if (this.state.loop && n > 1) this.holdT = setTimeout(() => { if (this.playingFlag) this.startAnim(0); }, hold * 2.2);
     else { this.playingFlag = false; this.setState({ playing: false }); }
   }
@@ -389,6 +390,30 @@ export class App extends Component {
     this.commit(p => { p.team.push(...added); p.plays.push(play); p.activePlayId = play.id; });
     this.setState({ frameIdx: 0, selection: null, showZones: true });
   }
+  // Rally simulator: replaces the "Rally simulation" play's positions with a new random rally and plays it.
+  runRally(auto) {
+    const pr = this.state.project;
+    let play = pr.plays.find(p => p.sim);
+    const showing = play && this.play() === play;
+    const from = showing ? indexView(this.liveView()) : null;
+    const res = simulateRally(pr.team, this.homeColor(), play ? play.sim : null);
+    clearTimeout(this.holdT); cancelAnimationFrame(this.raf); this.raf = null; this.anim = null; this.drag = null; this.poly = null;
+    if (!auto) this.history.push(JSON.stringify(pr));
+    pr.team.push(...res.added);
+    if (!play) { play = { id: uid(), name: res.title, category: 'Custom Play', roster: res.roster, frames: res.frames, sim: res.sim }; pr.plays.push(play); }
+    else Object.assign(play, { name: res.title, roster: res.roster, frames: res.frames, sim: res.sim });
+    pr.activePlayId = play.id;
+    this.playingFlag = true;
+    this.setState({ frameIdx: 0, selection: null, playing: true, confirm: null });
+    this.changed();
+    if (from) { this.anim = { from, toIdx: 0, fromPos: 0, start: performance.now(), dur: SPEEDS[this.state.speed].dur, useVia: false }; this.tick(); }
+    else this.holdT = setTimeout(() => { if (this.playingFlag) this.startAnim(1); }, SPEEDS[this.state.speed].hold * 2);
+  }
+  toggleAutoRally() {
+    const on = !this.state.autoRally;
+    this.setState({ autoRally: on });
+    if (on && !this.state.playing) this.runRally(true);
+  }
   dupPlay(id) {
     const src = this.state.project.plays.find(p => p.id === id); if (!src) return;
     const c = clone(src); c.id = uid(); c.name = src.name + ' (copy)';
@@ -657,7 +682,7 @@ export class App extends Component {
       startNewPlay: () => this.setState({ newPlay: { name: '', cat: 'Serve Receive' } }), cancelNewPlay: () => this.setState({ newPlay: null }),
       setNewPlayName: e => this.setState({ newPlay: Object.assign({}, s.newPlay, { name: e.target.value }) }),
       setNewPlayCat: e => this.setState({ newPlay: Object.assign({}, s.newPlay, { cat: e.target.value }) }),
-      createPlay: () => this.createPlay(), plays,
+      createPlay: () => this.createPlay(), plays, runRally: () => this.runRally(false), toggleAutoRally: () => this.toggleAutoRally(),
       presets: PRESETS.map(p => ({ key: p.id, label: p.label, add: () => this.addPreset(p.id) })),
       homeList: pr.team.filter(t => t.side === 'home').map(teamItem), oppList: pr.team.filter(t => t.side === 'opp').map(teamItem),
       teamSwatches: swList(this.homeColor(), c => this.commit(p => { p.team.forEach(t => { if (t.side === 'home' && t.role !== 'L') t.color = c; }); })),

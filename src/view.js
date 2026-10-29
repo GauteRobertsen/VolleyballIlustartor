@@ -74,6 +74,12 @@ function PlaysTab(v) {
       <div class="field"><label for="np-cat">Category</label><select id="np-cat" class="inp" value=${np.cat} onChange=${v.setNewPlayCat}>${CatOptions()}</select></div>
       <div class="rowbtns"><button class="btn primary sm" onClick=${v.createPlay}>Create play</button><button class="btn sm" onClick=${v.cancelNewPlay}>Cancel</button></div>
     </div>`}
+    <p class="ptitle">Rally simulator</p>
+    <p class="empty" style="margin:0">Random rallies between both teams in a 5-1: serve, pass, set, attack, block and dig. Score and rotations carry over.</p>
+    <div class="rowbtns">
+      <button class="btn primary sm" onClick=${v.runRally}>${solid('play')}Simulate a rally</button>
+      <button class=${'toggle' + (v.s.autoRally ? ' on' : '')} onClick=${v.toggleAutoRally} aria-pressed=${v.s.autoRally ? 'true' : 'false'}>${icon('loop')}Auto-play rallies</button>
+    </div>
     <p class="ptitle">System presets</p>
     <p class="empty" style="margin:0">Adds a play with one position per rotation, using your team's roles.</p>
     <div class="list">${v.presets.map(p => html`<button key=${p.key} class="item" onClick=${p.add}>

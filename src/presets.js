@@ -61,17 +61,19 @@ function zonesFor(system, rot) {
 }
 
 // Reuse the team's players by role; create any that are missing (returned in `added`).
-function pickPlayers(team, slots, homeColor) {
+function pickPlayers(team, slots, homeColor, side = 'home') {
   const used = new Set(), added = [], ids = {}, numbers = new Set(team.map(t => t.number));
   for (const slot of slots) {
     const role = SLOT_ROLE[slot];
-    const t = team.find(x => x.side === 'home' && x.role === role && !used.has(x.id));
+    const t = team.find(x => x.side === side && x.role === role && !used.has(x.id));
     if (t) { used.add(t.id); ids[slot] = t.id; continue; }
     let number = 1;
     while (numbers.has(number)) number++;
     numbers.add(number);
-    const same = added.filter(p => p.role === role).length + team.filter(x => x.side === 'home' && x.role === role).length;
-    const p = { id: uid(), name: ROLES[role].name + (same ? ' ' + (same + 1) : ''), number, role, color: role === 'L' ? '#0D9488' : homeColor, side: 'home' };
+    const same = added.filter(p => p.role === role).length + team.filter(x => x.side === side && x.role === role).length;
+    const opp = side === 'opp';
+    const p = { id: uid(), name: (opp ? 'Opp ' : '') + ROLES[role].name + (same ? ' ' + (same + 1) : ''), number, role,
+      color: role === 'L' ? (opp ? '#B45309' : '#0D9488') : (opp ? '#DC2626' : homeColor), side };
     added.push(p); used.add(p.id); ids[slot] = p.id;
   }
   return { ids, added };
@@ -161,5 +163,171 @@ export function buildPreset(id, team, homeColor) {
   }
   const play = { id: uid(), name: P.label, category: P.kind === 'receive' ? 'Serve Receive' : 'Block Defense', roster: Object.values(ids), frames };
   return { play, added };
+}
+
+// ---------- Rally simulator ----------
+// Plays a random rally between the two teams (both in a 5-1) and returns one position per touch:
+// serve, pass, set, attack, then block / dig / kill / error, with transition back and forth.
+// Each team is computed in its own coordinates (net at x = 9); the opponent is mirrored onto the far half.
+const TEAM_NAME = { home: 'My team', opp: 'Opponent' };
+const ATTACK = { // approach start -> contact point, in the attacking team's coordinates
+  left: { from: [5.6, 0.8], at: [8.5, 1.0], label: 'from the left' },
+  middle: { from: [7.0, 4.0], at: [8.6, 4.9], label: 'with a quick in the middle' },
+  right: { from: [5.8, 8.3], at: [8.5, 8.0], label: 'from the right' },
+  backright: { from: [3.2, 7.8], at: [5.6, 7.5], label: 'from the back row' },
+  pipe: { from: [3.0, 4.4], at: [5.6, 4.4], label: 'with a pipe' }
+};
+const PERIMETER = { LB: [2.6, 1.0], MBK: [0.9, 4.5], RB: [2.6, 8.0] };
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pickOne = a => a[Math.floor(Math.random() * a.length)];
+const jit = (p, r) => [p[0] + rnd(-r, r), p[1] + rnd(-r, r)];
+const clampIn = p => [Math.max(0.4, Math.min(8.6, p[0])), Math.max(0.4, Math.min(8.6, p[1]))];
+const toWorld = (side, p) => (side === 'home' ? [p[0], p[1]] : [18 - p[0], 9 - p[1]]);
+const baseRole = (k, front) => (front ? (isOH(k) ? 'LF' : isMB(k) ? 'MF' : 'RF') : (isRight(k) ? 'RB' : isOH(k) ? 'MBK' : 'LB'));
+
+function rallyTeam(side, rot, serving) {
+  const z = zonesFor('5-1', rot), mbBack = [5, 6, 1].map(n => z[n]).find(isMB);
+  const liberoIn = mbBack && !(serving && z[1] === mbBack); // the libero never serves
+  const at = n => (liberoIn && z[n] === mbBack ? 'L' : z[n]);
+  return { side, rot, zones: z, front: [4, 3, 2].map(at), back: [5, 6, 1].map(at), server: at(1), pos: {} };
+}
+function baseSpots(t) {
+  const out = {};
+  t.front.forEach(k => { out[k] = jit(BASE_SPOT[baseRole(k, true)], 0.2); });
+  t.back.forEach(k => { out[k] = jit(BASE_SPOT[baseRole(k, false)], 0.3); });
+  return out;
+}
+function defendSpots(t, lane) {
+  const out = {}, y = Math.max(0.9, Math.min(8.1, lane));
+  const mb = t.front.find(isMB), wing = t.front.find(k => baseRole(k, true) === (lane < 4.5 ? 'LF' : 'RF'));
+  const off = t.front.find(k => k !== mb && k !== wing), dir = lane < 4.5 ? -1 : 1;
+  out[wing] = [8.6, Math.max(0.4, Math.min(8.6, y + dir * 0.45))];
+  out[mb] = [8.6, y - dir * 0.45];
+  out[off] = [6.3, BASE_SPOT[baseRole(off, true)][1]];
+  t.back.forEach(k => { out[k] = jit(PERIMETER[baseRole(k, false)], 0.35); });
+  return { spots: out, blockers: [wing, mb], off };
+}
+function coverSpots(t, hitter, setter, at) {
+  const out = {}, ring = [[-1.3, -1.1], [-1.3, 1.1], [-2.9, 0], [-3.4, -2.3], [-3.4, 2.3]].map(o => clampIn([at[0] + o[0], at[1] + o[1]]));
+  const left = Object.keys(t.pos).filter(k => k !== hitter && k !== setter);
+  for (const spot of ring) {
+    if (!left.length) break;
+    left.sort((a, b) => Math.hypot(t.pos[a][0] - spot[0], t.pos[a][1] - spot[1]) - Math.hypot(t.pos[b][0] - spot[0], t.pos[b][1] - spot[1]));
+    out[left.shift()] = spot;
+  }
+  out[setter] = [7.5, SET_TARGET[1] + (at[1] < SET_TARGET[1] ? -0.6 : 0.6)];
+  return out;
+}
+
+// sim = { rot: { home, opp } (index into ROT_ORDER), serving, score: { home, opp }, sets: { home, opp } }
+export function simulateRally(team, homeColor, sim) {
+  sim = sim ? JSON.parse(JSON.stringify(sim)) : { rot: { home: 0, opp: 0 }, serving: 'home', score: { home: 0, opp: 0 }, sets: { home: 0, opp: 0 } };
+  const slots = LINEUP['5-1'].concat('L');
+  const H = pickPlayers(team, slots, homeColor, 'home'), O = pickPlayers(team.concat(H.added), slots, homeColor, 'opp');
+  const ids = { home: H.ids, opp: O.ids }, all = team.concat(H.added, O.added);
+  const nm = (side, k) => { const p = all.find(x => x.id === ids[side][k]); return p ? p.name : k; };
+  const S = sim.serving, R = S === 'home' ? 'opp' : 'home';
+  const T = { [S]: rallyTeam(S, ROT_ORDER[sim.rot[S]], true), [R]: rallyTeam(R, ROT_ORDER[sim.rot[R]], false) };
+  const snaps = [];
+  const snap = (name, note, side, ballOwn, kind) => snaps.push({ name, note, kind, ball: toWorld(side, ballOwn),
+    pos: { home: JSON.parse(JSON.stringify(T.home.pos)), opp: JSON.parse(JSON.stringify(T.opp.pos)) } });
+  const scoreText = () => TEAM_NAME.home + ' ' + sim.score.home + ' – ' + sim.score.opp + ' ' + TEAM_NAME.opp;
+  const title = 'Rally simulation · ' + scoreText();
+
+  // Serve: rotational order for the server's team, receive formation for the other.
+  const sv = T[S], rc = T[R];
+  const zoneSlot = { 4: sv.front[0], 3: sv.front[1], 2: sv.front[2], 5: sv.back[0], 6: sv.back[1], 1: sv.back[2] };
+  for (let n = 1; n <= 6; n++) sv.pos[zoneSlot[n]] = SERVE_SPOT[n];
+  const rec = RECEIVE_51.find(x => x.n === rc.rot);
+  for (const k of rc.front.concat(rc.back)) rc.pos[k] = rec[k];
+  snap('Serve · ' + nm(S, sv.server), TEAM_NAME[S] + ' serves. ' + scoreText(), S, [-0.7, 7.3], 'ball');
+
+  let winner = null, attacking = R, touch = null, attacks = 0;
+  const r0 = Math.random();
+  if (r0 < 0.07) {
+    snap('Serve error', nm(S, sv.server) + ' serves into the net.', S, [8.8, rnd(2, 7)], 'ball'); winner = R;
+  } else if (r0 < 0.14) {
+    sv.pos = baseSpots(sv);
+    snap('Ace!', nm(S, sv.server) + ' serves an ace.', R, [rnd(1.5, 5), rnd(1, 8)], 'ball'); winner = S;
+  } else {
+    const passers = ['OH1', 'OH2', 'L'].filter(k => rc.back.includes(k) || (rc.pos[k] && rc.pos[k][0] < 6));
+    touch = pickOne(passers.length ? passers : rc.back);
+    const land = clampIn(jit(rc.pos[touch], 0.8));
+    rc.pos[touch] = land;
+    rc.pos.S = jit(SET_TARGET, 0.2);
+    sv.pos = baseSpots(sv);
+    snap('Pass · ' + nm(R, touch), nm(R, touch) + ' passes to the target; the setter releases. ' + TEAM_NAME[S] + ' switches to base defense.', R, [land[0] + 0.3, land[1] - 0.3], 'ball');
+  }
+
+  while (!winner) {
+    const A = T[attacking], D = T[attacking === 'home' ? 'opp' : 'home'], aSide = attacking, dSide = D.side;
+    attacks++;
+    // Set: the setter (or the libero/opposite if the setter took the first ball) goes to the target, hitters to their approach.
+    const setter = touch !== 'S' ? 'S' : (A.pos.L && touch !== 'L' ? 'L' : 'OPP');
+    const opts = [];
+    A.front.forEach(k => { if (k === setter) return; if (isOH(k)) opts.push([k, 'left', 5]); else if (isMB(k)) opts.push([k, 'middle', 3]); else if (k === 'OPP') opts.push([k, 'right', 4]); });
+    A.back.forEach(k => { if (k === setter) return; if (k === 'OPP') opts.push([k, 'backright', 2]); else if (isOH(k)) opts.push([k, 'pipe', 1]); });
+    let roll = rnd(0, opts.reduce((a, o) => a + o[2], 0)), choice = opts[0];
+    for (const o of opts) { roll -= o[2]; if (roll <= 0) { choice = o; break; } }
+    const [hitter, lane] = choice, atk = ATTACK[lane];
+    A.pos[setter] = jit(SET_TARGET, 0.15);
+    opts.forEach(([k, l]) => { A.pos[k] = jit(ATTACK[l].from, 0.25); });
+    D.pos = baseSpots(D);
+    snap('Set · ' + nm(aSide, setter), nm(aSide, setter) + ' sets ' + nm(aSide, hitter) + ' ' + atk.label + '.', aSide, [SET_TARGET[0] + 0.25, SET_TARGET[1] - 0.25], 'ball');
+
+    // Attack: hitter at the ball, teammates cover; defenders form the block and dig positions.
+    const at = jit(atk.at, 0.15), cover = coverSpots(A, hitter, setter, at);
+    A.pos[hitter] = at; Object.assign(A.pos, cover);
+    const def = defendSpots(D, 9 - at[1]);
+    D.pos = def.spots;
+    snap('Attack · ' + nm(aSide, hitter), nm(aSide, hitter) + ' attacks ' + atk.label + '. ' + nm(dSide, def.blockers[0]) + ' and ' + nm(dSide, def.blockers[1]) + ' block; the rest cover.', aSide, [at[0] + 0.2, at[1]], 'attack');
+
+    const r = Math.random(), force = attacks >= 5;
+    if (force || r < 0.36) {
+      let land = null, best = -1;
+      for (let i = 0; i < 10; i++) { const c = [rnd(0.6, 8.0), rnd(0.5, 8.5)], d = Math.min(...Object.values(D.pos).map(p => Math.hypot(p[0] - c[0], p[1] - c[1]))); if (d > best) { best = d; land = c; } }
+      const near = Object.keys(D.pos).sort((a, b) => Math.hypot(D.pos[a][0] - land[0], D.pos[a][1] - land[1]) - Math.hypot(D.pos[b][0] - land[0], D.pos[b][1] - land[1]))[0];
+      D.pos[near] = [D.pos[near][0] + (land[0] - D.pos[near][0]) * 0.55, D.pos[near][1] + (land[1] - D.pos[near][1]) * 0.55];
+      snap('Kill · point ' + TEAM_NAME[aSide], nm(aSide, hitter) + ' puts it away; ' + nm(dSide, near) + ' cannot reach it.', dSide, land, 'ball'); winner = aSide;
+    } else if (r < 0.48) {
+      snap('Block · point ' + TEAM_NAME[dSide], nm(dSide, def.blockers[1]) + ' and ' + nm(dSide, def.blockers[0]) + ' stuff the attack.', aSide, [rnd(6.6, 8.4), Math.max(0.6, Math.min(8.4, at[1]))], 'ball'); winner = dSide;
+    } else if (r < 0.6) {
+      const out = Math.random() < 0.5 ? [rnd(-1.6, -0.6), rnd(0.5, 8.5)] : [rnd(1, 8), pickOne([-0.8, 9.8])];
+      snap('Out · point ' + TEAM_NAME[dSide], nm(aSide, hitter) + ' hits it out.', dSide, out, 'ball'); winner = dSide;
+    } else {
+      const diggers = D.back.concat(def.off);
+      const digger = pickOne(diggers), land = clampIn(jit(D.pos[digger], 0.9));
+      D.pos[digger] = land;
+      snap('Dig · ' + nm(dSide, digger), nm(dSide, digger) + ' digs it up. Transition: ' + TEAM_NAME[dSide] + ' attacks next.', dSide, [land[0] + 0.3, land[1] - 0.3], 'ball');
+      attacking = dSide; touch = digger;
+    }
+  }
+
+  // Score, side-out rotation and set end.
+  sim.score[winner]++;
+  let tail = '';
+  if (winner !== S) { sim.rot[winner] = (sim.rot[winner] + 1) % 6; sim.serving = winner; tail = ' Side-out: ' + TEAM_NAME[winner] + ' rotates and serves.'; }
+  const lead = sim.score[winner] - sim.score[winner === 'home' ? 'opp' : 'home'];
+  if (sim.score[winner] >= 25 && lead >= 2) { sim.sets[winner]++; tail += ' ' + TEAM_NAME[winner] + ' wins the set!'; sim.score = { home: 0, opp: 0 }; }
+  const last = snaps[snaps.length - 1];
+  last.note += ' ' + scoreText() + '.' + tail;
+
+  const roster = Object.values(ids.home).concat(Object.values(ids.opp));
+  const frames = snaps.map((sn, i) => {
+    const f = newFrame(sn.name); f.note = sn.note;
+    for (const side of ['home', 'opp']) for (const k in ids[side]) {
+      const p = sn.pos[side][k];
+      if (p) { const w = toWorld(side, p); f.pos[ids[side][k]] = { x: w[0], y: w[1], hidden: false, via: null }; }
+      else f.pos[ids[side][k]] = { x: HIDDEN[0], y: HIDDEN[1], hidden: true, via: null };
+    }
+    f.ball = { x: sn.ball[0], y: sn.ball[1], hidden: false, via: null };
+    const nx = snaps[i + 1];
+    if (nx) {
+      const k = ARROWS[sn.kind === 'attack' ? 'attack' : 'ball'];
+      f.arrows.push({ id: 'b' + i, kind: sn.kind, x1: sn.ball[0], y1: sn.ball[1], x2: nx.ball[0], y2: nx.ball[1], cx: (sn.ball[0] + nx.ball[0]) / 2, cy: (sn.ball[1] + nx.ball[1]) / 2, curved: false, color: k.color, width: k.width, dash: k.dash, head: 'end' });
+    }
+    return f;
+  });
+  return { frames, roster, sim, added: H.added.concat(O.added), title };
 }
 // PRESETS-END

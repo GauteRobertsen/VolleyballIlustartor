@@ -45,6 +45,10 @@ Preact and htm load from unpkg.com, so the browser needs internet access.
   into the receive formation. Serving shows the spots at the serve, then the switch to base defense. Every
   formation is overlap-legal, and the libero replaces the back-row middle. Presets use your team's
   roles and create any missing players (for example a second setter for 6-2).
+- **Rally simulator**: generates random rallies between both teams in a 5-1 (serve, pass, set,
+  attack, then block / dig / kill / error, with transitions). Every player moves at each touch:
+  blockers close on the hitter, defenders spread out and attackers cover. "Auto-play rallies" keeps
+  playing new rallies, tracking the score, side-out rotations and sets. Missing opponents are created.
 - **Player markers** show the role (S, MB, WS, OPP, L, DS) inside the circle and the shirt number in
   the badge at the top right.
 - **Tactics library**: separate plays with categories (Serve Receive, Free Ball, Attack
@@ -60,7 +64,7 @@ Preact and htm load from unpkg.com, so the browser needs internet access.
 | --- | --- |
 | `src/constants.js` | Roles, arrow presets, speeds, palette |
 | `src/model.js` | Data model, normalisation, example plays, factories |
-| `src/presets.js` | 5-1 and 6-2 system presets (serve receive, serving, base defense) |
+| `src/presets.js` | 5-1 and 6-2 system presets (serve receive, serving, base defense) and the rally simulator |
 | `src/geometry.js` | Arrow, zone and stroke path geometry; colour helpers |
 | `src/animation.js` | Frame → view conversion and keyframe interpolation |
 | `src/history.js` | Undo / redo snapshots with edit coalescing |
