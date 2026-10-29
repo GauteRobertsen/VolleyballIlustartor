@@ -95,11 +95,11 @@ export function Court(v) {
         <circle cx="0.05" cy="0.07" r="0.45" fill="#000000" fill-opacity="0.22" />
         ${p.selected && html`<circle r="0.64" fill="none" stroke="#FFFFFF" stroke-width="0.07" stroke-dasharray="0.16 0.1" />`}
         <circle r="0.43" fill=${p.color} stroke="#FFFFFF" stroke-width="0.07" />
-        <text y="0.015" text-anchor="middle" dominant-baseline="central" font-size=${p.fs} font-weight="700" fill=${p.txt} style="pointer-events:none">${p.num}</text>
-        ${p.showBadge && html`<g transform="translate(0.36 -0.36)" style="pointer-events:none">
-          <rect x=${p.bx} y="-0.15" width=${p.bw} height="0.3" rx="0.15" fill="#0E1726" stroke="#FFFFFF" stroke-width="0.03" />
-          <text y="0.005" text-anchor="middle" dominant-baseline="central" font-size="0.19" font-weight="700" fill="#FFFFFF">${p.abbr}</text>
-        </g>`}
+        <text y="0.015" text-anchor="middle" dominant-baseline="central" font-size=${p.fs} font-weight="700" fill=${p.txt} style="pointer-events:none">${p.abbr}</text>
+        <g transform="translate(0.36 -0.36)" style="pointer-events:none">
+          <rect x=${p.bx} y="-0.17" width=${p.bw} height="0.34" rx="0.17" fill="#0E1726" stroke="#FFFFFF" stroke-width="0.03" />
+          <text y="0.005" text-anchor="middle" dominant-baseline="central" font-size="0.22" font-weight="700" fill="#FFFFFF">${p.num}</text>
+        </g>
       </g>`)}</g>
 
     ${v.ball.show && html`

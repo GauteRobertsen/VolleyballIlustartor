@@ -68,13 +68,16 @@ function Header(v) {
 function PlaysTab(v) {
   const np = v.s.newPlay;
   return html`<div class="pad">
-    ${!np && html`<button class="btn primary wide" onClick=${v.startNewPlay}>${icon('plus')}New play</button>
-      <button class="btn wide" onClick=${v.add51} title="One position per rotation, serve receive, libero in for the back-row middle">${icon('plus')}Add 5-1 rotations</button>`}
+    ${!np && html`<button class="btn primary wide" onClick=${v.startNewPlay}>${icon('plus')}New play</button>`}
     ${np && html`<div class="newplay">
       <div class="field"><label for="np-name">Play name</label><input id="np-name" class="inp" value=${np.name} onInput=${v.setNewPlayName} placeholder="e.g. Rotation 2 receive" /></div>
       <div class="field"><label for="np-cat">Category</label><select id="np-cat" class="inp" value=${np.cat} onChange=${v.setNewPlayCat}>${CatOptions()}</select></div>
       <div class="rowbtns"><button class="btn primary sm" onClick=${v.createPlay}>Create play</button><button class="btn sm" onClick=${v.cancelNewPlay}>Cancel</button></div>
     </div>`}
+    <p class="ptitle">System presets</p>
+    <p class="empty" style="margin:0">Adds a play with one position per rotation, using your team's roles.</p>
+    <div class="list">${v.presets.map(p => html`<button key=${p.key} class="item" onClick=${p.add}>
+      <span class="grow"><span class="t1">${p.label}</span></span>${icon('plus')}</button>`)}</div>
     <p class="ptitle">Tactics library</p>
     <div class="list">
       ${v.plays.map(pl => html`<div class="list" key=${pl.key}>

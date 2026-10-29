@@ -4,7 +4,8 @@
 import { Component } from 'https://unpkg.com/preact@10.24.3/dist/preact.module.js';
 import { ARROWS, SPEEDS, SWATCHES, SWATCH_NAMES, roleOf } from './constants.js';
 import { r3, arrowGeom, zonePath, zoneCenter, strokePath, textOn, darken } from './geometry.js';
-import { uid, clone, newFrame, makePlayer, makePlay, make51Play, sampleProject } from './model.js';
+import { uid, clone, newFrame, makePlayer, makePlay, sampleProject } from './model.js';
+import { PRESETS, buildPreset } from './presets.js';
 import { frameView, indexView, interpolate, animProgress } from './animation.js';
 import { loadLocal, saveLocal, downloadJson, parseProject, readFile } from './storage.js';
 import { History } from './history.js';
@@ -382,8 +383,8 @@ export class App extends Component {
     this.commit(p => { p.plays.push(play); p.activePlayId = play.id; });
     this.setState({ newPlay: null, frameIdx: 0, selection: null });
   }
-  add51() {
-    const { play, added } = make51Play(this.state.project.team, this.homeColor());
+  addPreset(id) {
+    const { play, added } = buildPreset(id, this.state.project.team, this.homeColor());
     this.stopAll();
     this.commit(p => { p.team.push(...added); p.plays.push(play); p.activePlayId = play.id; });
     this.setState({ frameIdx: 0, selection: null });
@@ -453,11 +454,12 @@ export class App extends Component {
     /* players, labels, ball */
     const pv = live.players.filter(p => tm[p.id]).sort((a, b) => (isSel('player', a.id) ? 1 : 0) - (isSel('player', b.id) ? 1 : 0));
     const players = pv.map(p => {
-      const t = tm[p.id], role = roleOf(t.role), num = String(t.number), bw = role.abbr.length * 0.12 + 0.16;
+      // The role sits inside the marker, the shirt number in the badge at the top right.
+      const t = tm[p.id], role = roleOf(t.role), num = String(t.number), bw = num.length * 0.13 + 0.17;
       return {
-        key: p.id, tf: `translate(${r3(p.x)} ${r3(p.y)})`, op: r3(p.o), color: t.color, txt: textOn(t.color), num,
-        fs: num.length > 2 ? 0.3 : num.length > 1 ? 0.38 : 0.44, selected: isSel('player', p.id) && editing,
-        showBadge: s.labelMode !== 'role' && s.labelMode !== 'name-role', abbr: role.abbr, bw: r3(bw), bx: r3(-bw / 2),
+        key: p.id, tf: `translate(${r3(p.x)} ${r3(p.y)})`, op: r3(p.o), color: t.color, txt: textOn(t.color), num, abbr: role.abbr,
+        fs: role.abbr.length > 2 ? 0.27 : role.abbr.length > 1 ? 0.33 : 0.42, selected: isSel('player', p.id) && editing,
+        bw: r3(bw), bx: r3(-bw / 2),
         down: e => this.objDown(e, 'player', p.id)
       };
     });
@@ -655,7 +657,8 @@ export class App extends Component {
       startNewPlay: () => this.setState({ newPlay: { name: '', cat: 'Serve Receive' } }), cancelNewPlay: () => this.setState({ newPlay: null }),
       setNewPlayName: e => this.setState({ newPlay: Object.assign({}, s.newPlay, { name: e.target.value }) }),
       setNewPlayCat: e => this.setState({ newPlay: Object.assign({}, s.newPlay, { cat: e.target.value }) }),
-      createPlay: () => this.createPlay(), add51: () => this.add51(), plays,
+      createPlay: () => this.createPlay(), plays,
+      presets: PRESETS.map(p => ({ key: p.id, label: p.label, add: () => this.addPreset(p.id) })),
       homeList: pr.team.filter(t => t.side === 'home').map(teamItem), oppList: pr.team.filter(t => t.side === 'opp').map(teamItem),
       teamSwatches: swList(this.homeColor(), c => this.commit(p => { p.team.forEach(t => { if (t.side === 'home' && t.role !== 'L') t.color = c; }); })),
       addPlayer: side => { const t = makePlayer(pr.team, side, this.homeColor()); this.commit(p => { p.team.push(t); }); this.setState({ selection: { type: 'player', id: t.id } }); },

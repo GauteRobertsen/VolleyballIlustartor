@@ -40,6 +40,12 @@ Preact and htm load from unpkg.com, so the browser needs internet access.
 - **Playback**: play all positions, pause, previous, next, restart and loop, at slow, normal or
   fast speed, with a progress bar.
 - **Presentation mode**: shows a large court with captions taken from each position's coach notes.
+- **System presets**: one click adds a 5-1 or 6-2 play with one position per rotation (in game
+  order). The presets are serve receive, and serving followed by the switch to base defense. Every
+  formation is overlap-legal, and the libero replaces the back-row middle. Presets use your team's
+  roles and create any missing players (for example a second setter for 6-2).
+- **Player markers** show the role (S, MB, WS, OPP, L, DS) inside the circle and the shirt number in
+  the badge at the top right.
 - **Tactics library**: separate plays with categories (Serve Receive, Free Ball, Attack
   Combination, Block Defense, Transition, Opponent Serve, Custom Play).
 - **Undo / redo**, autosave to the browser, and JSON export / import (download a file or copy and
@@ -53,6 +59,7 @@ Preact and htm load from unpkg.com, so the browser needs internet access.
 | --- | --- |
 | `src/constants.js` | Roles, arrow presets, speeds, palette |
 | `src/model.js` | Data model, normalisation, example plays, factories |
+| `src/presets.js` | 5-1 and 6-2 system presets (serve receive, serving, base defense) |
 | `src/geometry.js` | Arrow, zone and stroke path geometry; colour helpers |
 | `src/animation.js` | Frame → view conversion and keyframe interpolation |
 | `src/history.js` | Undo / redo snapshots with edit coalescing |

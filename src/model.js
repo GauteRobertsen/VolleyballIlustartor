@@ -12,6 +12,7 @@
 // Ids of arrows/zones are kept when a frame is duplicated so they morph smoothly between frames.
 
 import { ARROWS, ROLES } from './constants.js';
+import { buildPreset } from './presets.js';
 
 export const uid = () => 'i' + Math.random().toString(36).slice(2, 10);
 export const clone = o => JSON.parse(JSON.stringify(o));
@@ -59,59 +60,6 @@ export function makePlay(team, name, category) {
   homes.forEach((t, i) => { f.pos[t.id] = { x: spots[i][0], y: spots[i][1], hidden: false, via: null }; });
   f.ball = { x: -1.2, y: 7.8, hidden: false, via: null };
   return { id: uid(), name, category, roster: homes.map(t => t.id), frames: [f] };
-}
-
-// 5-1 system: one setter; the opposite plays opposite the setter, outsides and middles opposite each other.
-// Rotation 1 lineup by zone 1..6: S, OH1, MB1, OPP, OH2, MB2. The libero replaces the back-row middle.
-// One position per rotation in game order (setter in 1, 6, 5, 4, 3, 2), every formation overlap-legal at the serve.
-export const FIVE_ONE = [
-  { n: 1, zone: 1, out: 'MB2', note: 'Setter in zone 1 (back row) hides behind the right-side passer and releases on the serve. Libero in for the back-row middle; outsides and libero pass.',
-    S: [2.4, 8.4], OH1: [4.6, 7.2], MB1: [8.0, 4.4], OPP: [7.6, 1.0], OH2: [4.0, 1.9], L: [3.8, 4.5] },
-  { n: 6, zone: 6, out: 'MB2', note: 'Setter in zone 6 tucks behind the opposite at the net and releases to the target. Passers: outside (front left), libero, outside (back right).',
-    S: [7.0, 5.9], OH1: [3.8, 7.2], MB1: [8.0, 7.8], OPP: [8.2, 5.4], OH2: [5.0, 1.6], L: [3.8, 4.0] },
-  { n: 5, zone: 5, out: 'MB1', note: 'Setter in zone 5 hides behind the left-front middle, then runs along the net to the target. Opposite hides at the right of the net.',
-    S: [7.4, 1.4], OH1: [3.9, 4.8], MB2: [8.4, 0.8], OH2: [4.9, 2.6], OPP: [7.8, 8.0], L: [4.0, 7.2] },
-  { n: 4, zone: 4, out: 'MB1', note: 'Setter front row (zone 4): starts at the net on the left and slides to the target. Only two front-row attackers; the back-row opposite hides.',
-    S: [8.4, 1.2], MB2: [8.2, 4.0], OH2: [4.8, 7.2], OH1: [4.0, 1.9], L: [3.8, 4.5], OPP: [2.4, 8.4] },
-  { n: 3, zone: 3, out: 'MB1', note: 'Setter front row (zone 3) waits at the net in the middle. Opposite hides deep in zone 6 while outsides and libero pass.',
-    OH1: [4.9, 1.8], S: [8.4, 4.6], MB2: [8.2, 7.8], L: [3.8, 3.6], OPP: [2.2, 5.6], OH2: [4.0, 7.3] },
-  { n: 2, zone: 2, out: 'MB2', note: 'Setter front row (zone 2) is already near the target. Opposite hides back left; libero in for the back-row middle.',
-    MB1: [8.3, 0.9], OH1: [5.0, 2.4], S: [8.4, 7.6], OPP: [2.2, 1.2], OH2: [3.9, 4.8], L: [3.9, 7.3] }
-];
-const SET_TARGET = [8.3, 5.8];
-
-// Builds the 5-1 play from the team's roles; any missing role is created and returned in `added`.
-export function make51Play(team, homeColor) {
-  const used = new Set(), added = [];
-  const numbers = new Set(team.map(t => t.number));
-  const take = role => {
-    const t = team.find(x => x.side === 'home' && x.role === role && !used.has(x.id));
-    if (t) { used.add(t.id); return t.id; }
-    let number = 1;
-    while (numbers.has(number)) number++;
-    numbers.add(number);
-    const p = { id: uid(), name: ROLES[role].name, number, role, color: role === 'L' ? '#0D9488' : homeColor, side: 'home' };
-    added.push(p); used.add(p.id);
-    return p.id;
-  };
-  const ids = { S: take('S'), OH1: take('WS'), MB1: take('MB'), OPP: take('OPP'), OH2: take('WS'), MB2: take('MB'), L: take('L') };
-  const frames = FIVE_ONE.map(r => {
-    const f = newFrame('Rotation ' + r.n + ' · setter in ' + r.zone);
-    f.note = r.note;
-    for (const k in ids) {
-      if (k === r.out) { f.pos[ids[k]] = { x: -2.6, y: 10.2, hidden: true, via: null }; continue; }
-      f.pos[ids[k]] = { x: r[k][0], y: r[k][1], hidden: false, via: null };
-    }
-    f.ball = { x: 20.0, y: 6.0, hidden: false, via: null };
-    // A release along the net bends away from it so it does not cross the middle blocker.
-    const s = r.S, k = ARROWS.run, along = Math.abs(s[0] - SET_TARGET[0]) < 1.5;
-    if (Math.hypot(s[0] - SET_TARGET[0], s[1] - SET_TARGET[1]) > 1) {
-      f.arrows.push({ id: 'release', kind: 'run', x1: s[0], y1: s[1], x2: SET_TARGET[0], y2: SET_TARGET[1], cx: (s[0] + SET_TARGET[0]) / 2 - (along ? 0.9 : 0), cy: (s[1] + SET_TARGET[1]) / 2, curved: along, color: k.color, width: k.width, dash: true, head: 'end' });
-    }
-    return f;
-  });
-  const play = { id: uid(), name: '5-1 System · All rotations', category: 'Serve Receive', roster: Object.values(ids), frames };
-  return { play, added };
 }
 
 export function sampleProject() {
@@ -168,6 +116,6 @@ export function sampleProject() {
      Z('pass2', 'poly', { pts: [[1.0, 4.5], [5.4, 4.5], [5.4, 8.7], [1.0, 8.7]] }, '#0D9488', 0.2, 'Libero')]);
   const play2 = { id: uid(), name: 'Free Ball', category: 'Free Ball', roster: [S, OH1, MB, OPP, OH2, LIB], frames: [g1, g2] };
 
-  const play3 = make51Play(team, '#2563EB').play;
+  const play3 = buildPreset('51-receive', team, '#2563EB').play;
   return { v: 1, team, plays: [play1, play2, play3], activePlayId: play1.id };
 }
