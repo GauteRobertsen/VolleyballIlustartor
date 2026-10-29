@@ -35,6 +35,8 @@ const RECEIVE_62_NOTES = {
   6: 'The back-row setter (zone 6) tucks behind the front-row setter at the net and releases to the target. Outsides and libero pass.',
   5: 'The back-row setter (zone 5) hides behind the left-front middle and runs along the net to the target. The front-row setter hits from the right.'
 };
+// The middle of each rotational zone, used to show the rotation before players move.
+const ZONE_SPOT = { 4: [7.5, 1.6], 3: [7.5, 4.6], 2: [7.5, 7.6], 5: [3.0, 1.6], 6: [3.0, 4.6], 1: [3.0, 7.6] };
 // Where everyone stands at our serve (rotational order, zone 1 is the server) ...
 const SERVE_SPOT = { 4: [7.9, 1.4], 3: [7.9, 4.5], 2: [7.9, 7.6], 5: [4.0, 1.6], 6: [3.2, 4.5], 1: [-1.0, 7.6] };
 // ... and the base-defense spots they switch to once the ball is served.
@@ -95,7 +97,8 @@ function makeFrame(name, note, ids, spots, ball, arrows) {
   return f;
 }
 
-function receiveFrame(system, rot, ids) {
+// Two positions per rotation: everyone in their rotational zone, then the serve-receive formation.
+function receiveFrames(system, rot, ids) {
   let spots = {}, out, note, setter;
   if (system === '5-1') {
     const r = RECEIVE_51.find(x => x.n === rot);
@@ -109,9 +112,20 @@ function receiveFrame(system, rot, ids) {
     out = map(r.out); note = RECEIVE_62_NOTES[base]; setter = map('S');
   }
   delete spots[out];
+  const z = zonesFor(system, rot), zoneSpots = {}, moves = [];
+  for (let n = 1; n <= 6; n++) zoneSpots[z[n] === out ? 'L' : z[n]] = ZONE_SPOT[n];
+  for (const k in zoneSpots) {
+    const a = zoneSpots[k], b = spots[k];
+    if (Math.hypot(a[0] - b[0], a[1] - b[1]) > 1) moves.push(runArrow('mv-' + k, a, b, true));
+  }
+  const zoneNote = 'Rotation ' + rot + ': everyone starts in their rotational zone (numbers in each zone corner). '
+    + 'The libero is in for the back-row middle. The arrows show where each player moves to receive the serve.';
   const s = spots[setter], arrows = [];
   if (Math.hypot(s[0] - SET_TARGET[0], s[1] - SET_TARGET[1]) > 1) arrows.push(runArrow('release', s, SET_TARGET, true));
-  return makeFrame('Rotation ' + rot + ' · serve receive', note, ids, spots, [20.0, 6.0], arrows);
+  return [
+    makeFrame('Rotation ' + rot + ' · zones', zoneNote, ids, zoneSpots, [20.0, 6.0], moves),
+    makeFrame('Rotation ' + rot + ' · serve receive', note, ids, spots, [20.0, 6.0], arrows)
+  ];
 }
 
 function servingFrames(system, rot, ids) {
@@ -142,7 +156,7 @@ export function buildPreset(id, team, homeColor) {
   const { ids, added } = pickPlayers(team, LINEUP[P.system].concat('L'), homeColor);
   const frames = [];
   for (const rot of ROT_ORDER) {
-    if (P.kind === 'receive') frames.push(receiveFrame(P.system, rot, ids));
+    if (P.kind === 'receive') frames.push(...receiveFrames(P.system, rot, ids));
     else frames.push(...servingFrames(P.system, rot, ids));
   }
   const play = { id: uid(), name: P.label, category: P.kind === 'receive' ? 'Serve Receive' : 'Block Defense', roster: Object.values(ids), frames };

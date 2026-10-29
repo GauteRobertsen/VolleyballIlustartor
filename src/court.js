@@ -6,10 +6,10 @@ const GRID = [];
 for (let x = 0; x <= 18; x++) GRID.push({ x1: x, y1: 0, x2: x, y2: 9, major: x % 3 === 0 });
 for (let y = 0; y <= 9; y++) GRID.push({ x1: 0, y1: y, x2: 18, y2: y, major: y % 3 === 0 });
 
-// Rotation zones as seen by each team facing the net.
+// Rotation zone numbers, drawn in the corner of each zone (as seen by each team facing the net).
 const ZONE_NUMS = [
-  [7.5, 1.5, '4'], [7.5, 4.5, '3'], [7.5, 7.5, '2'], [3, 1.5, '5'], [3, 4.5, '6'], [3, 7.5, '1'],
-  [10.5, 7.5, '4'], [10.5, 4.5, '3'], [10.5, 1.5, '2'], [15, 7.5, '5'], [15, 4.5, '6'], [15, 1.5, '1']
+  [6.45, 0.55, '4'], [6.45, 3.55, '3'], [6.45, 6.55, '2'], [0.45, 0.55, '5'], [0.45, 3.55, '6'], [0.45, 6.55, '1'],
+  [9.45, 6.55, '4'], [9.45, 3.55, '3'], [9.45, 0.55, '2'], [12.45, 6.55, '5'], [12.45, 3.55, '6'], [12.45, 0.55, '1']
 ];
 
 const dashedExt = [[6, -1.75, -0.05], [6, 9.05, 10.75], [12, -1.75, -0.05], [12, 9.05, 10.75]];
@@ -58,7 +58,7 @@ export function Court(v) {
     ${s.showZones && html`<g style="pointer-events:none">
       <line x1="0" y1="3" x2="18" y2="3" stroke="#FFFFFF" stroke-width="0.03" stroke-opacity="0.55" stroke-dasharray="0.2 0.15" />
       <line x1="0" y1="6" x2="18" y2="6" stroke="#FFFFFF" stroke-width="0.03" stroke-opacity="0.55" stroke-dasharray="0.2 0.15" />
-      ${ZONE_NUMS.map(([x, y, t]) => html`<text x=${x} y=${y} text-anchor="middle" dominant-baseline="central" font-size="1.1" font-weight="700" fill="#FFFFFF" fill-opacity="0.32">${t}</text>`)}
+      ${ZONE_NUMS.map(([x, y, t]) => html`<text x=${x} y=${y} text-anchor="middle" dominant-baseline="central" font-size="0.7" font-weight="700" fill="#FFFFFF" fill-opacity="0.55">${t}</text>`)}
     </g>`}
     <${Net} />
 

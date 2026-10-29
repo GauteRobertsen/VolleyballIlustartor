@@ -387,7 +387,7 @@ export class App extends Component {
     const { play, added } = buildPreset(id, this.state.project.team, this.homeColor());
     this.stopAll();
     this.commit(p => { p.team.push(...added); p.plays.push(play); p.activePlayId = play.id; });
-    this.setState({ frameIdx: 0, selection: null });
+    this.setState({ frameIdx: 0, selection: null, showZones: true });
   }
   dupPlay(id) {
     const src = this.state.project.plays.find(p => p.id === id); if (!src) return;

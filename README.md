@@ -41,7 +41,8 @@ Preact and htm load from unpkg.com, so the browser needs internet access.
   fast speed, with a progress bar.
 - **Presentation mode**: shows a large court with captions taken from each position's coach notes.
 - **System presets**: one click adds a 5-1 or 6-2 play with one position per rotation (in game
-  order). The presets are serve receive, and serving followed by the switch to base defense. Every
+  order). Serve receive shows each rotation twice: everyone in their rotational zone, then moving
+  into the receive formation. Serving shows the spots at the serve, then the switch to base defense. Every
   formation is overlap-legal, and the libero replaces the back-row middle. Presets use your team's
   roles and create any missing players (for example a second setter for 6-2).
 - **Player markers** show the role (S, MB, WS, OPP, L, DS) inside the circle and the shirt number in
