@@ -4,7 +4,7 @@
 import { Component } from 'https://unpkg.com/preact@10.24.3/dist/preact.module.js';
 import { ARROWS, SPEEDS, SWATCHES, SWATCH_NAMES, roleOf } from './constants.js';
 import { r3, arrowGeom, zonePath, zoneCenter, strokePath, textOn, darken } from './geometry.js';
-import { uid, clone, newFrame, normalize, makePlayer, makePlay, sampleProject } from './model.js';
+import { uid, clone, newFrame, makePlayer, makePlay, make51Play, sampleProject } from './model.js';
 import { frameView, indexView, interpolate, animProgress } from './animation.js';
 import { loadLocal, saveLocal, downloadJson, parseProject, readFile } from './storage.js';
 import { History } from './history.js';
@@ -382,6 +382,12 @@ export class App extends Component {
     this.commit(p => { p.plays.push(play); p.activePlayId = play.id; });
     this.setState({ newPlay: null, frameIdx: 0, selection: null });
   }
+  add51() {
+    const { play, added } = make51Play(this.state.project.team, this.homeColor());
+    this.stopAll();
+    this.commit(p => { p.team.push(...added); p.plays.push(play); p.activePlayId = play.id; });
+    this.setState({ frameIdx: 0, selection: null });
+  }
   dupPlay(id) {
     const src = this.state.project.plays.find(p => p.id === id); if (!src) return;
     const c = clone(src); c.id = uid(); c.name = src.name + ' (copy)';
@@ -649,7 +655,7 @@ export class App extends Component {
       startNewPlay: () => this.setState({ newPlay: { name: '', cat: 'Serve Receive' } }), cancelNewPlay: () => this.setState({ newPlay: null }),
       setNewPlayName: e => this.setState({ newPlay: Object.assign({}, s.newPlay, { name: e.target.value }) }),
       setNewPlayCat: e => this.setState({ newPlay: Object.assign({}, s.newPlay, { cat: e.target.value }) }),
-      createPlay: () => this.createPlay(), plays,
+      createPlay: () => this.createPlay(), add51: () => this.add51(), plays,
       homeList: pr.team.filter(t => t.side === 'home').map(teamItem), oppList: pr.team.filter(t => t.side === 'opp').map(teamItem),
       teamSwatches: swList(this.homeColor(), c => this.commit(p => { p.team.forEach(t => { if (t.side === 'home' && t.role !== 'L') t.color = c; }); })),
       addPlayer: side => { const t = makePlayer(pr.team, side, this.homeColor()); this.commit(p => { p.team.push(t); }); this.setState({ selection: { type: 'player', id: t.id } }); },

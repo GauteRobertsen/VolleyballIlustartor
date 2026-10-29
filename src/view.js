@@ -68,7 +68,8 @@ function Header(v) {
 function PlaysTab(v) {
   const np = v.s.newPlay;
   return html`<div class="pad">
-    ${!np && html`<button class="btn primary wide" onClick=${v.startNewPlay}>${icon('plus')}New play</button>`}
+    ${!np && html`<button class="btn primary wide" onClick=${v.startNewPlay}>${icon('plus')}New play</button>
+      <button class="btn wide" onClick=${v.add51} title="One position per rotation, serve receive, libero in for the back-row middle">${icon('plus')}Add 5-1 rotations</button>`}
     ${np && html`<div class="newplay">
       <div class="field"><label for="np-name">Play name</label><input id="np-name" class="inp" value=${np.name} onInput=${v.setNewPlayName} placeholder="e.g. Rotation 2 receive" /></div>
       <div class="field"><label for="np-cat">Category</label><select id="np-cat" class="inp" value=${np.cat} onChange=${v.setNewPlayCat}>${CatOptions()}</select></div>
